@@ -3,26 +3,26 @@ module.exports = {
         'project1': {
             run: ['build'],
             linkedProjects: [
-                'project3',
+                'linked-project1',
             ]
         },
         'project2': {
             run: ['build'],
             linkedProjects: [
-                'project3',
-                'project4'
+                'linked-project1',
+                'linked-project2'
             ],
             childProjects: {
-                'project5': {
+                'child-project1': {
                     // run: ['build'], // Not yet supported
                     linkedProjects: [
-                        'project3',
+                        'linked-project1',
                     ]
                 },
-                'project6': {
+                'child-project2': {
                     // run: ['build'], // Not yet supported
                     linkedProjects: [
-                        'project7'
+                        'linked-project3'
                     ]
                 }
             }

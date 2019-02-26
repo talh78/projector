@@ -1,16 +1,20 @@
-const path = require('path');
-const fs = require('fs');
-const spawn = require('child_process').spawn;
+import path from 'path';
+import {spawn} from 'child_process';
 
-const RETURN_CODE_SUCCESS = 0;
-const DRY_RUN_ARG = '--dry';
+import {log} from './logger';
+import {ProjectorConfig, ProjectorConfigType, ProjectorProject, SingleCommand} from './config';
 
-const currentDate = () => new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
-const log = (message, error) => console.log(`[${error ? '!' : '*'}] <<<<<<<< ${currentDate()} ${message} >>>>>>>>`);
+export const RETURN_CODE_SUCCESS = 0;
 
-class ProjectorConfigRunner {
-    constructor(config, baseDirArg) {
-        this.config = config;
+export class ProjectorConfigRunner {
+    public baseDir: string;
+    
+    private config: ProjectorConfig;
+    private cwd: string;
+
+    constructor(config: ProjectorConfigType, baseDirArg: string) {
+        this.config = new ProjectorConfig(config);
+        
         this.cwd = process.cwd();
         this.baseDir = `${this.cwd}`;
         if (baseDirArg && baseDirArg !== '.') {
@@ -18,14 +22,7 @@ class ProjectorConfigRunner {
         }
     }
 
-    project(project) { return this.config.projects[project]; }
-    projectNames() { return Object.keys(this.config.projects); }
-    linkCommand(project) { return {cmd: 'yarn', args: ['link', project]}; }
-    linkCommands(linkedProjects) { return linkedProjects.map(linkProject => this.linkCommand(linkProject)); }
-    runnerScripts(project) { return this.config.projects[project].run; }
-    commandsList(commandName) { return this.config.commands[commandName]; }
-
-    runCommand(commandObj, cwd = this.cwd, dryRun = false) {
+    private runCommand(commandObj: SingleCommand, cwd: string = this.cwd, dryRun: boolean = false): Promise<number> {
         return new Promise(resolve => {
             const {cmd, args: args = []} = commandObj;
             const cmdStr = `${cmd} ${args.join(' ')}`;
@@ -49,7 +46,7 @@ class ProjectorConfigRunner {
         });
     } 
 
-    async runCommandListInProject(commands, project, dryRun = false) {
+    private async runCommandListInProject(commands: SingleCommand[], project: string, dryRun: boolean = false) {
         for (let i = 0; i < commands.length; i++) {
             const command = commands[i];
 
@@ -63,16 +60,16 @@ class ProjectorConfigRunner {
     }
 
     // TODO: Extract to config
-    async setupSingleProjectLinks(project, projectPath, dryRun = false) {
+    private async setupSingleProjectLinks(project: ProjectorProject, projectPath: string, dryRun: boolean = false) {
         const linkedProjects = project.linkedProjects;
         if (!linkedProjects || !linkedProjects.length) return RETURN_CODE_SUCCESS;
 
         log(`Running Script: link[${projectPath}]`);
-        return await this.runCommandListInProject(this.linkCommands(linkedProjects), projectPath, dryRun);
+        return await this.runCommandListInProject(this.config.linkCommands(linkedProjects), projectPath, dryRun);
     }
 
-    async setupProjectLinks(projectPath, dryRun = false) {
-        const projectObj = this.project(projectPath);
+    private async setupProjectLinks(projectPath: string, dryRun: boolean = false) {
+        const projectObj = this.config.project(projectPath);
 
         let returnCode = await this.setupSingleProjectLinks(projectObj, projectPath, dryRun);
         if (returnCode) return returnCode;
@@ -89,16 +86,18 @@ class ProjectorConfigRunner {
             returnCode = await this.setupSingleProjectLinks(childProjectObj, childProjectPath, dryRun);
             if (returnCode) return returnCode;
         }
+
+        return RETURN_CODE_SUCCESS;
     }
 
-    async runProjectScript(projectName, dryRun) {
-        const runnerScripts = this.runnerScripts(projectName);
+    private async runProjectScript(projectName: string, dryRun: boolean = false) {
+        const runnerScripts = this.config.runnerScripts(projectName);
         if (!runnerScripts || !runnerScripts.length) return RETURN_CODE_SUCCESS;
 
         for (let i = 0; i < runnerScripts.length; i++) {
             const scriptName = runnerScripts[i];
 
-            const commandsList = this.commandsList(scriptName);
+            const commandsList = this.config.commandsList(scriptName);
             if (!commandsList || !commandsList.length) return RETURN_CODE_SUCCESS;
 
             log(`Running Script: ${scriptName}[${projectName}]`);
@@ -110,8 +109,8 @@ class ProjectorConfigRunner {
     }
 
     // TODO: Child projects scripts
-    async runConfig(dryRun = false) {
-        const projectNames = this.projectNames();
+    public async runConfig(dryRun: boolean = false) {
+        const projectNames = this.config.projectNames();
 
         if (!projectNames || !projectNames.length) return RETURN_CODE_SUCCESS;
 
@@ -128,53 +127,3 @@ class ProjectorConfigRunner {
         return RETURN_CODE_SUCCESS;
     }
 }
-
-const parseCommandLine = args => {
-    let parsedArgs = {
-        configPath: '',
-        baseDir: '.',
-        dryRun: false
-    };
-
-    args.forEach(arg => {
-        if (arg === DRY_RUN_ARG) {
-            parsedArgs.dryRun = true;
-            return;
-        }
-
-        if (!fs.existsSync(arg)) return;
-
-        const argStat = fs.statSync(arg);
-        if (argStat.isFile()) {
-            parsedArgs.configPath = arg;
-            return;
-        } else if (argStat.isDirectory()) {
-            parsedArgs.baseDir = arg;
-            return;
-        }
-    });
-
-    return parsedArgs;
-};
-
-console.time('Total Runtime');
-const {configPath, baseDir, dryRun} = parseCommandLine(process.argv.slice(2));
-
-log(`PROJECTOR${dryRun ? ': DRY RUN' : ''}`);
-
-let config = undefined;
-try {
-    config = require(configPath);
-    log(`Loaded Config: ${configPath}`);
-} catch(e) {
-    console.error(`Error Requiring Config: ${e}`);
-    process.exit(1);
-}
-
-const runner = new ProjectorConfigRunner(config, baseDir);
-log(`Base Directory: ${runner.baseDir}`);
-
-runner.runConfig(dryRun).then(returnCode => {
-    log(returnCode ? `Exited with code: ${returnCode}` : 'Done!', returnCode !== RETURN_CODE_SUCCESS);
-    console.timeEnd('Total Runtime');
-});

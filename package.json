@@ -1,0 +1,30 @@
+{
+  "name": "projector",
+  "version": "0.0.1",
+  "description": "A script for setting up work environments and generic command running",
+  "author": "talh",
+  "license": "ISC",
+  "main": "dist/projector.js",
+  "scripts": {
+    "build": "tsc -p ./src --outDir ./dist"
+  },
+  "dependencies": {
+    "tslib": "^1.9.3"
+  },
+  "devDependencies": {
+    "@ts-tools/node": "^0.9.3",
+    "@types/node": "^11.9.5",
+    "typescript": "^3.3.3333"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talh78/projector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/talh78/projector/issues"
+  },
+  "homepage": "https://github.com/talh78/projector#readme"
+}
