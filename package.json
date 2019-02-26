@@ -5,7 +5,11 @@
   "author": "talh",
   "license": "ISC",
   "main": "dist/projector.js",
+  "bin": {
+    "projector": "dist/projector.js"
+  },
   "scripts": {
+    "clean": "rm -rf dist; rm yarn.lock",
     "build": "tsc -p ./src --outDir ./dist"
   },
   "dependencies": {
