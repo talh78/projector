@@ -3,7 +3,7 @@ A script for setting up work environments and generic command running
 
 # How to run:
 ```
-node projector.js -c <Config File Path> [-d <Base Directory Path>]  [--dry]
+node projector.js -c <Config File Path> [-d <Base Directory Path>] [--dry]
 ```
 
 # Parameters:

@@ -1,4 +1,5 @@
 import program from 'commander';
+const {version} = require('../package.json');
 
 import {log} from './logger';
 import {ProjectorConfigType} from './config';
@@ -6,10 +7,8 @@ import {ProjectorConfigRunner, RETURN_CODE_SUCCESS} from './runner';
 
 const DEFAULT_BASE_DIR = '.';
 
-console.time('Total Runtime');
-
 program
-    .version('0.0.2')
+    .version(version)
     .option('-c, --config <path>', 'Config File Path')
     .option('-d, --dir <path>', 'Base Directory Path')
     .option('--dry', 'Perform Dry Run')
@@ -22,6 +21,8 @@ if (typeof program.config === 'undefined') {
 log(`PROJECTOR START${program.dry ? ': DRY RUN' : ''}`);
 
 try {
+    console.time('Total Runtime');
+
     const config: ProjectorConfigType = require(program.config);
     log(`Loaded Config: ${program.config}`);
 
