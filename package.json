@@ -1,6 +1,6 @@
 {
   "name": "projector",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A script for setting up work environments and generic command running",
   "author": "talh",
   "license": "ISC",
@@ -13,6 +13,7 @@
     "build": "tsc -p ./src --outDir ./dist"
   },
   "dependencies": {
+    "commander": "^2.19.0",
     "tslib": "^1.9.3"
   },
   "devDependencies": {

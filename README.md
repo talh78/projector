@@ -3,12 +3,12 @@ A script for setting up work environments and generic command running
 
 # How to run:
 ```
-node projector.js <Base Directory> <Config File Path> [--dry]
+node projector.js -c <Config File Path> [-d <Base Directory Path>]  [--dry]
 ```
 
 # Parameters:
- - Base Directory: A base directory where all projects in the config file are located
  - Config File Path: Path to the Projector config file
+ - Base Directory Path: A base directory where all projects in the config file are located (default: Current Directory)
  - --dry: (Optional) Perform a dry run and just print out the commands that will be run
 
 # Config File Structure:
