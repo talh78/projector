@@ -27,11 +27,12 @@ try {
     log(`Loaded Config: ${program.config}`);
 
     const baseDir = program.dir || `${DEFAULT_BASE_DIR}`;
-    const runner = new ProjectorConfigRunner(config, baseDir);
+    const runner = new ProjectorConfigRunner(config, baseDir, !!program.dry);
     log(`Base Directory: ${runner.baseDir}`);
 
-    runner.runConfig(program.dry).then(returnCode => {
-        log(returnCode ? `Exited with code: ${returnCode}` : 'Done!', returnCode !== RETURN_CODE_SUCCESS);
+    runner.runConfig().then(returnCode => {
+        const success = returnCode === RETURN_CODE_SUCCESS;
+        log(success ? 'Done!' : `Exited with code: ${returnCode}`, !success);
         console.timeEnd('Total Runtime');
     });
 } catch(e) {

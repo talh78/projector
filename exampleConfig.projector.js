@@ -14,13 +14,13 @@ module.exports = {
             ],
             childProjects: {
                 'child-project1': {
-                    // run: ['build'], // Not yet supported
+                    run: ['build'],
                     linkedProjects: [
                         'linked-project1',
                     ]
                 },
                 'child-project2': {
-                    // run: ['build'], // Not yet supported
+                    run: ['build'],
                     linkedProjects: [
                         'linked-project3'
                     ]

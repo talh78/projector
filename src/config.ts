@@ -19,8 +19,9 @@ export class ProjectorConfig {
 
     public project(project: string) { return this.config.projects[project]; }
     public projectNames() { return Object.keys(this.config.projects); }
-    public linkCommand(project: string): SingleCommand { return {cmd: 'yarn', args: ['link', project]}; }
+
+    private linkCommand(project: string): SingleCommand { return {cmd: 'yarn', args: ['link', project]}; }
     public linkCommands(linkedProjects: string[]) { return linkedProjects.map(linkProject => this.linkCommand(linkProject)); }
-    public runnerScripts(project: string) { return this.config.projects[project].run; }
+
     public commandsList(commandName: string) { return this.config.commands[commandName]; }
 }
