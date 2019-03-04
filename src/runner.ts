@@ -9,6 +9,12 @@ import {
     SingleCommand
 } from './config';
 
+export interface ProjectorPackage {
+    scriptName: string;
+    projectPath: string;
+    commands: SingleCommand[];
+}
+
 export const RETURN_CODE_SUCCESS = 0;
 
 export class ProjectorConfigRunner {
@@ -32,11 +38,11 @@ export class ProjectorConfigRunner {
     }
 
     private runCommand(
-        commandObj: SingleCommand,
+        command: SingleCommand,
         cwd: string = this.cwd
     ): Promise<number> {
         return new Promise(resolve => {
-            const {cmd, args: args = []} = commandObj;
+            const {cmd, args: args = []} = command;
             const cmdStr = `${cmd} ${args.join(' ')}`;
         
             log(`Spawning Command: ${cwd} > ${cmdStr}`);
@@ -58,15 +64,14 @@ export class ProjectorConfigRunner {
         });
     } 
 
-    private async runCommandListInProject(
-        commands: SingleCommand[],
-        project: string
-    ) {
+    private async runPackage({scriptName, projectPath, commands}: ProjectorPackage) {
+        log(`Running Script: ${scriptName}[${projectPath}]`);
+
         let returnCode = RETURN_CODE_SUCCESS;
         for (let i = 0; i < commands.length && returnCode === RETURN_CODE_SUCCESS; i++) {
             returnCode = await this.runCommand(
                 commands[i],
-                path.join(this.baseDir, project)
+                path.join(this.baseDir, projectPath)
             );
         }
 
@@ -74,99 +79,92 @@ export class ProjectorConfigRunner {
     }
 
     // TODO: Extract to config
-    private async setupSingleProjectLinks(
+    private packageSingleProjectLinks(
         project: ProjectorProject,
         projectPath: string
-    ) {
+    ): ProjectorPackage[] {
         const linkedProjects = project.linkedProjects;
-        if (!linkedProjects || !linkedProjects.length) return RETURN_CODE_SUCCESS;
+        if (!linkedProjects || !linkedProjects.length) return [];
 
-        log(`Running Script: link[${projectPath}]`);
-        return await this.runCommandListInProject(
-            this.config.linkCommands(linkedProjects),
-            projectPath
-        );
+        return [{
+            scriptName: 'link',
+            projectPath,
+            commands: this.config.linkCommands(linkedProjects)
+        }];
     }
 
-    private async runSingleProjectScript(
+    private packageSingleProjectScripts(
         project: ProjectorProject,
         projectPath: string
-    ) {
-        const runnerScripts = project.run;
-        if (!runnerScripts || !runnerScripts.length) return RETURN_CODE_SUCCESS;
+    ): ProjectorPackage[] {
+        const scripts = project.run;
+        if (!scripts || !scripts.length) return [];
 
-        let returnCode = RETURN_CODE_SUCCESS;
-        for (let i = 0; i < runnerScripts.length && returnCode === RETURN_CODE_SUCCESS; i++) {
-            const scriptName = runnerScripts[i];
+        return scripts.reduce((packages, scriptName) => {
+            const commands = this.config.commands(scriptName);
+            if (!commands || !commands.length) return packages;
 
-            const commandsList = this.config.commandsList(scriptName);
-            if (!commandsList || !commandsList.length) continue;
-
-            log(`Running Script: ${scriptName}[${projectPath}]`);
-            returnCode = await this.runCommandListInProject(
-                commandsList,
-                projectPath
-            );
-        }
-
-        return returnCode;
+            return packages.concat([{
+                scriptName,
+                projectPath,
+                commands
+            }]);
+        }, [] as ProjectorPackage[]);
     }
 
-    private async executeEntireProject(
-        executeSingleProject: (project: ProjectorProject, projectPath: string) => Promise<number>,
+    private packageEntireProject(
+        packageSingleProject: (project: ProjectorProject, projectPath: string) => ProjectorPackage[],
         projectPath: string
     ) {
-        const projectObj = this.config.project(projectPath);
+        const project = this.config.project(projectPath);
 
-        let returnCode = await executeSingleProject(projectObj, projectPath);
-        if (returnCode !== RETURN_CODE_SUCCESS) return returnCode;
+        let projectPackages = packageSingleProject(project, projectPath);
 
-        const childProjects = projectObj.childProjects;
-        if (!childProjects) return RETURN_CODE_SUCCESS;
+        const childProjects = project.childProjects;
+        if (!childProjects) return projectPackages;
 
         const childProjectNames = Object.keys(childProjects);
-        for (let i = 0; i < childProjectNames.length && returnCode === RETURN_CODE_SUCCESS; i++) {
-            const childProjectName = childProjectNames[i];
-
-            returnCode = await executeSingleProject(
+        return childProjectNames.reduce((packages, childProjectName) => packages.concat(
+            packageSingleProject(
                 childProjects[childProjectName],
                 path.join(projectPath, childProjectName)
-            );
+            )
+        ), projectPackages);
+    }
+
+    private packageProjectLinks(projectPath: string) {
+        return this.packageEntireProject(
+            this.packageSingleProjectLinks.bind(this),
+            projectPath
+        );
+    }
+
+    private packageProjectScripts(projectPath: string) {
+        return this.packageEntireProject(
+            this.packageSingleProjectScripts.bind(this),
+            projectPath
+        );
+    }
+
+    public packageConfig() {
+        const projectNames = this.config.projectNames();
+        if (!projectNames || !projectNames.length) return [];
+
+        return projectNames.reduce((packages, project) => 
+            packages
+                .concat(this.packageProjectLinks(project))
+                .concat(this.packageProjectScripts(project))
+        , [] as ProjectorPackage[]);
+    }
+
+    public async runConfig() {
+        const configPackages = this.packageConfig();
+
+        let returnCode = RETURN_CODE_SUCCESS;
+        for (let i = 0; i < configPackages.length && returnCode === RETURN_CODE_SUCCESS; i++) {
+            returnCode = await this.runPackage(configPackages[i]);
         }
 
         return returnCode;
-    }
-
-    private async setupProjectLinks(projectPath: string) {
-        return await this.executeEntireProject(
-            this.setupSingleProjectLinks.bind(this),
-            projectPath
-        );
-    }
-
-    private async runProjectScript(projectPath: string) {
-        return await this.executeEntireProject(
-            this.runSingleProjectScript.bind(this),
-            projectPath
-        );
-    }
-
-    // TODO: Child projects scripts
-    public async runConfig() {
-        const projectNames = this.config.projectNames();
-
-        if (!projectNames || !projectNames.length) return RETURN_CODE_SUCCESS;
-
-        for (let i = 0; i < projectNames.length; i++) {
-            const project = projectNames[i];
-
-            let returnCode = await this.setupProjectLinks(project);
-            if (returnCode) return returnCode;
-
-            returnCode = await this.runProjectScript(project);
-            if (returnCode !== RETURN_CODE_SUCCESS) return returnCode;
-        }
-
-        return RETURN_CODE_SUCCESS;
     }
 }

@@ -23,5 +23,5 @@ export class ProjectorConfig {
     private linkCommand(project: string): SingleCommand { return {cmd: 'yarn', args: ['link', project]}; }
     public linkCommands(linkedProjects: string[]) { return linkedProjects.map(linkProject => this.linkCommand(linkProject)); }
 
-    public commandsList(commandName: string) { return this.config.commands[commandName]; }
+    public commands(scriptName: string) { return this.config.commands[scriptName]; }
 }
