@@ -6,7 +6,8 @@ import {
     ProjectorConfig,
     ProjectorConfigType,
     ProjectorProject,
-    SingleCommand
+    SingleCommand, 
+    stringifyCommand
 } from './config';
 
 export interface ProjectorPackage {
@@ -14,6 +15,11 @@ export interface ProjectorPackage {
     projectPath: string;
     commands: SingleCommand[];
 }
+
+const stringifyProjectorPackage = ({scriptName, projectPath, commands}: ProjectorPackage, baseDir: string = '') => 
+`${projectPath} [${scriptName}]:
+${commands.map(command => ` - ${path.join(baseDir, projectPath)} > ${stringifyCommand(command)}`).join('\n')}
+`;
 
 export const RETURN_CODE_SUCCESS = 0;
 
@@ -43,7 +49,7 @@ export class ProjectorConfigRunner {
     ): Promise<number> {
         return new Promise(resolve => {
             const {cmd, args: args = []} = command;
-            const cmdStr = `${cmd} ${args.join(' ')}`;
+            const cmdStr = stringifyCommand(command);
         
             log(`Spawning Command: ${cwd} > ${cmdStr}`);
 
@@ -159,6 +165,13 @@ export class ProjectorConfigRunner {
 
     public async runConfig() {
         const configPackages = this.packageConfig();
+
+        if (this.dryRun) {
+            configPackages.forEach(configPackage => 
+                console.log(stringifyProjectorPackage(configPackage, this.baseDir))
+            );
+            return RETURN_CODE_SUCCESS;
+        }
 
         let returnCode = RETURN_CODE_SUCCESS;
         for (let i = 0; i < configPackages.length && returnCode === RETURN_CODE_SUCCESS; i++) {

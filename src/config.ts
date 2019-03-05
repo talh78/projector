@@ -14,6 +14,8 @@ export interface ProjectorConfigType {
     commands: Record<string, SingleCommand[]>;
 }
 
+export const stringifyCommand = ({cmd, args: args = []}: SingleCommand) => `${cmd} ${args.join(' ')}`;
+
 export class ProjectorConfig {
     constructor(public config: ProjectorConfigType) {}
 
