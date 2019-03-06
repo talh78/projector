@@ -1,25 +1,15 @@
 import path from 'path';
 import {spawn} from 'child_process';
 
-import {log} from './logger';
+import {ProjectorLogger} from './logger';
 import {
     ProjectorConfig,
     ProjectorConfigType,
     ProjectorProject,
-    SingleCommand, 
+    ProjectorSingleCommand, 
     stringifyCommand
 } from './config';
-
-export interface ProjectorPackage {
-    scriptName: string;
-    projectPath: string;
-    commands: SingleCommand[];
-}
-
-const stringifyProjectorPackage = ({scriptName, projectPath, commands}: ProjectorPackage, baseDir: string = '') => 
-`${projectPath} [${scriptName}]:
-${commands.map(command => ` - ${path.join(baseDir, projectPath)} > ${stringifyCommand(command)}`).join('\n')}
-`;
+import {ProjectorPackage} from './package';
 
 export const RETURN_CODE_SUCCESS = 0;
 
@@ -27,6 +17,7 @@ export class ProjectorConfigRunner {
     public baseDir: string;
     
     private config: ProjectorConfig;
+    private logger: ProjectorLogger;
     private cwd: string;
 
     constructor(
@@ -35,7 +26,10 @@ export class ProjectorConfigRunner {
         private dryRun: boolean = false
     ) {
         this.config = new ProjectorConfig(config);
+
+        this.logger = new ProjectorLogger();
         
+        // TODO: Enable relative paths
         this.cwd = process.cwd();
         this.baseDir = `${this.cwd}`;
         if (baseDirArg && baseDirArg !== '.') {
@@ -44,34 +38,40 @@ export class ProjectorConfigRunner {
     }
 
     private runCommand(
-        command: SingleCommand,
+        command: ProjectorSingleCommand,
         cwd: string = this.cwd
     ): Promise<number> {
         return new Promise(resolve => {
             const {cmd, args: args = []} = command;
             const cmdStr = stringifyCommand(command);
         
-            log(`Spawning Command: ${cwd} > ${cmdStr}`);
+            this.logger.logProgress(`Spawning Command: ${cwd} > ${cmdStr}`);
 
             if (this.dryRun) return resolve(RETURN_CODE_SUCCESS);
 
             const child = spawn(cmd, args, {cwd});
         
-            child.stdout.setEncoding('utf8');
-            child.stdout.pipe(process.stdout);
+            if (child.stdout) {
+                child.stdout.setEncoding('utf8');
+                // child.stdout.pipe(process.stdout);
+                child.stdout.on('data', data => this.logger.logProgress(data, false));
+            }
         
-            child.stderr.setEncoding('utf8');
-            child.stderr.pipe(process.stderr);
+            if (child.stderr) {
+                child.stderr.setEncoding('utf8');
+                child.stderr.pipe(process.stderr);
+            }
         
             child.on('close', returnCode => {
-                log(`Done Command: ${cwd} > ${cmdStr} (${returnCode})`);
+                this.logger.doneCommand();
+                this.logger.logProgress(`Done Command: ${cwd} > ${cmdStr} (${returnCode})`);
                 resolve(returnCode);
             });
         });
     } 
 
     private async runPackage({scriptName, projectPath, commands}: ProjectorPackage) {
-        log(`Running Script: ${scriptName}[${projectPath}]`);
+        this.logger.logProgress(`Running Script: ${scriptName}[${projectPath}]`);
 
         let returnCode = RETURN_CODE_SUCCESS;
         for (let i = 0; i < commands.length && returnCode === RETURN_CODE_SUCCESS; i++) {
@@ -92,11 +92,11 @@ export class ProjectorConfigRunner {
         const linkedProjects = project.linkedProjects;
         if (!linkedProjects || !linkedProjects.length) return [];
 
-        return [{
-            scriptName: 'link',
+        return [new ProjectorPackage(
+            'link',
             projectPath,
-            commands: this.config.linkCommands(linkedProjects)
-        }];
+            this.config.linkCommands(linkedProjects)
+        )];
     }
 
     private packageSingleProjectScripts(
@@ -110,11 +110,11 @@ export class ProjectorConfigRunner {
             const commands = this.config.commands(scriptName);
             if (!commands || !commands.length) return packages;
 
-            return packages.concat([{
+            return packages.concat([new ProjectorPackage(
                 scriptName,
                 projectPath,
                 commands
-            }]);
+            )]);
         }, [] as ProjectorPackage[]);
     }
 
@@ -165,11 +165,13 @@ export class ProjectorConfigRunner {
 
     public async runConfig() {
         const configPackages = this.packageConfig();
+        this.logger.setCommandCount(ProjectorPackage.commandCount(configPackages));
 
         if (this.dryRun) {
             configPackages.forEach(configPackage => 
-                console.log(stringifyProjectorPackage(configPackage, this.baseDir))
+                console.log(configPackage.toString(this.baseDir))
             );
+            console.log();
             return RETURN_CODE_SUCCESS;
         }
 

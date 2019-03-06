@@ -1,7 +1,8 @@
 import program from 'commander';
+import moment from 'moment';
 const {version} = require('../package.json');
 
-import {log} from './logger';
+import {ProjectorLogger} from './logger';
 import {ProjectorConfigType} from './config';
 import {ProjectorConfigRunner, RETURN_CODE_SUCCESS} from './runner';
 
@@ -18,11 +19,12 @@ if (typeof program.config === 'undefined') {
     program.help();
 }
 
-log(`PROJECTOR START${program.dry ? ': DRY RUN' : ''}`);
+const {log, error} = ProjectorLogger;
+const startTime = moment.now();
+log('PROJECTOR START' + (program.dry ? ' - DRY RUN' : ''));
 
+// TODO: Input validation (paths exist, error if not) with formatted error messages
 try {
-    console.time('Total Runtime');
-
     const config: ProjectorConfigType = require(program.config);
     log(`Loaded Config: ${program.config}`);
 
@@ -31,9 +33,13 @@ try {
     log(`Base Directory: ${runner.baseDir}`);
 
     runner.runConfig().then(returnCode => {
+        const runtimeStr = !program.dry ? ` Total Runtime: ${moment().diff(startTime, 'seconds', true)}s` : '';
         const success = returnCode === RETURN_CODE_SUCCESS;
-        log(success ? 'Done!' : `Exited with code: ${returnCode}`, !success);
-        console.timeEnd('Total Runtime');
+        if (success) {
+            log('Done!' + runtimeStr);
+        } else {
+            error(`Exited with code: ${returnCode}.` + runtimeStr);
+        }
     });
 } catch(e) {
     console.error(`${e}`);

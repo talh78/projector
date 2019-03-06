@@ -4,17 +4,22 @@ export interface ProjectorProject {
     childProjects?: Record<string, ProjectorProject>;
 }
 
-export interface SingleCommand {
+export interface ProjectorSingleCommand {
     cmd: string;
     args?: string[];
 }
 
 export interface ProjectorConfigType {
     projects: Record<string, ProjectorProject>;
-    commands: Record<string, SingleCommand[]>;
+    commands: Record<string, ProjectorSingleCommand[]>;
 }
 
-export const stringifyCommand = ({cmd, args: args = []}: SingleCommand) => `${cmd} ${args.join(' ')}`;
+export const stringifyCommand = ({cmd, args: args = []}: ProjectorSingleCommand) => `${cmd} ${args.join(' ')}`;
+
+const linkCommand = (project: string) => ({
+    cmd: 'yarn',
+    args: ['link', project]
+}) as ProjectorSingleCommand;
 
 export class ProjectorConfig {
     constructor(public config: ProjectorConfigType) {}
@@ -22,8 +27,7 @@ export class ProjectorConfig {
     public project(project: string) { return this.config.projects[project]; }
     public projectNames() { return Object.keys(this.config.projects); }
 
-    private linkCommand(project: string): SingleCommand { return {cmd: 'yarn', args: ['link', project]}; }
-    public linkCommands(linkedProjects: string[]) { return linkedProjects.map(linkProject => this.linkCommand(linkProject)); }
+    public linkCommands(linkedProjects: string[]) { return linkedProjects.map(linkCommand); }
 
     public commands(scriptName: string) { return this.config.commands[scriptName]; }
 }
